@@ -154,11 +154,19 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // App Icon
-                          Icon(
-                            Icons.task_alt,
-                            size: 80,
-                            color: Theme.of(context).colorScheme.primary,
+                          // App Icon/GIF
+                          Image.asset(
+                            './images/waiting.gif',
+                            width: 150,
+                            height: 148,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Fallback to icon if GIF not found
+                              return Icon(
+                                Icons.task_alt,
+                                size: 80,
+                                color: Theme.of(context).colorScheme.primary,
+                              );
+                            },
                           ),
                           const SizedBox(height: 16),
                           
