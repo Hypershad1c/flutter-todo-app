@@ -1,5 +1,6 @@
 class Task {
-  int? id;
+  // CORRECTION CRITIQUE: L'ID doit être de type String pour Firestore
+  String? id; 
   String title;
   String description;
   String priority; // 'Low', 'Medium', 'High'
@@ -9,7 +10,7 @@ class Task {
   DateTime? reminderTime;
 
   Task({
-    this.id,
+    this.id, // String?
     required this.title,
     required this.description,
     this.priority = 'Medium',
@@ -22,11 +23,12 @@ class Task {
   // Convert Task to Map for database storage
   Map<String, dynamic> toMap() {
     return {
-      'id': id,
+      // 'id': id, // Souvent omis pour Firestore
       'title': title,
       'description': description,
       'priority': priority,
-      'isDone': isDone ? 1 : 0,
+      // Utilisation du booléen pour la compatibilité Firebase (true/false)
+      'isDone': isDone, 
       'createdAt': createdAt.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'reminderTime': reminderTime?.toIso8601String(),
@@ -36,11 +38,12 @@ class Task {
   // Create Task from Map
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
-      id: map['id'] as int?,
+      id: map['id'] as String?, // CORRECTION: String?
       title: map['title'] as String,
       description: map['description'] as String,
       priority: map['priority'] as String,
-      isDone: (map['isDone'] == 1 || map['isDone'] == true),
+      // Gère les deux formats (int pour SQLite, bool pour Firestore)
+      isDone: (map['isDone'] == 1 || map['isDone'] == true), 
       createdAt: DateTime.parse(map['createdAt'] as String),
       completedAt: map['completedAt'] != null
           ? DateTime.parse(map['completedAt'] as String)
@@ -53,7 +56,7 @@ class Task {
 
   // Create a copy of the task with updated fields
   Task copyWith({
-    int? id,
+    String? id, // CORRECTION: String?
     String? title,
     String? description,
     String? priority,

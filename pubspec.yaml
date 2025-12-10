@@ -13,22 +13,30 @@ dependencies:
   # UI Components
   cupertino_icons: ^1.0.6
   
-  # Local Storage
-  shared_preferences: ^2.2.2
-  sqflite: ^2.3.0
-  path_provider: ^2.1.1
-  path: ^1.8.3
+  # ==================================
+  # 🚀 FIREBASE DEPENDENCIES ADDED HERE
+  # ==================================
+  firebase_core: ^3.6.0 # Core Firebase functionality
+  firebase_auth: ^5.3.1 # User Authentication
+  cloud_firestore: ^5.4.4 # Firestore Database
   
-  # Web Database Alternative
-  sembast: ^3.6.0
-  sembast_web: ^2.3.0
+  # Local Storage (Keep for user preferences like theme, but remove for tasks)
+  shared_preferences: ^2.2.2
   
   # Local Notifications
-  flutter_local_notifications: ^16.3.0
-  timezone: ^0.9.2
+  flutter_local_notifications: ^19.5.0
+  timezone: 0.10.1
   
   # Utilities
   intl: ^0.19.0
+  
+  # Keep these packages for now, but they will be removed later
+  # when the task database logic is migrated to Firestore.
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+  sembast: ^3.6.0
+  sembast_web: ^2.3.0
 
 dev_dependencies:
   flutter_test:

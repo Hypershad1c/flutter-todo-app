@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'home_page.dart';
+import '../main.dart';
+
+typedef ThemeCallback = void Function(ThemeMode themeMode);
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final ThemeCallback onThemeChanged;
+  final ThemeMode currentThemeMode;
+  
+  const LoginPage({
+    super.key, 
+    required this.onThemeChanged, 
+    required this.currentThemeMode,
+  });
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -11,7 +21,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController(); 
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -36,93 +46,98 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _animationController.dispose();
     super.dispose();
   }
 
-  /// Check if user is already logged in
+  /// Check if user is already logged in using Firebase Auth
   Future<void> _checkIfLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-    
-    if (isLoggedIn && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
-      );
+    if (FirebaseAuth.instance.currentUser != null && mounted) {
+      _navigateToHome();
     }
   }
 
-  /// Handle login - saves credentials locally
+  /// Handle Firebase Authentication (Sign In or Register)
   Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     setState(() => _isLoading = true);
 
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 1));
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-    final prefs = await SharedPreferences.getInstance();
-    
-    // Check if this is first time login (registration)
-    final savedUsername = prefs.getString('username');
-    
-    if (savedUsername == null) {
-      // First time - save credentials
-      await prefs.setString('username', _usernameController.text);
-      await prefs.setString('password', _passwordController.text);
-      await prefs.setBool('isLoggedIn', true);
-      
-      if (mounted) {
-        _navigateToHome();
-      }
-    } else {
-      // Validate credentials
-      final savedPassword = prefs.getString('password');
-      
-      if (_usernameController.text == savedUsername &&
-          _passwordController.text == savedPassword) {
-        await prefs.setBool('isLoggedIn', true);
-        
-        if (mounted) {
+    try {
+      // Try signing in first
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      _navigateToHome();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        // User doesn't exist, try creating account
+        try {
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
           _navigateToHome();
+        } on FirebaseAuthException catch (regError) {
+          _showErrorSnackbar(regError.message ?? 'Registration failed: ${regError.code}');
         }
       } else {
-        setState(() => _isLoading = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid username or password'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _showErrorSnackbar(e.message ?? 'Sign In failed: ${e.code}');
       }
+    } catch (e) {
+      _showErrorSnackbar('An unexpected error occurred: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showErrorSnackbar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
   /// Navigate to home page with animation
   void _navigateToHome() {
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => const HomePage(),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          const begin = Offset(1.0, 0.0);
-          const end = Offset.zero;
-          const curve = Curves.easeInOut;
-          var tween = Tween(begin: begin, end: end).chain(
-            CurveTween(curve: curve),
-          );
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
-        },
-      ),
-    );
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => HomePage(
+            onThemeChanged: widget.onThemeChanged, 
+            currentThemeMode: widget.currentThemeMode,
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(1.0, 0.0);
+            const end = Offset.zero;
+            const curve = Curves.easeInOut;
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+    }
   }
 
   @override
@@ -156,11 +171,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         children: [
                           // App Icon/GIF
                           Image.asset(
-                            './images/waiting.gif',
+                            'assets/images/waiting.gif', 
                             width: 150,
                             height: 148,
                             errorBuilder: (context, error, stackTrace) {
-                              // Fallback to icon if GIF not found
                               return Icon(
                                 Icons.task_alt,
                                 size: 80,
@@ -187,19 +201,23 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           ),
                           const SizedBox(height: 32),
                           
-                          // Username Field
+                          // Email Field 
                           TextFormField(
-                            controller: _usernameController,
+                            controller: _emailController,
+                            keyboardType: TextInputType.emailAddress,
                             decoration: InputDecoration(
-                              labelText: 'Username',
-                              prefixIcon: const Icon(Icons.person),
+                              labelText: 'Email', 
+                              prefixIcon: const Icon(Icons.email), 
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Please enter your username';
+                                return 'Please enter your email';
+                              }
+                              if (!value.contains('@') || !value.contains('.')) {
+                                return 'Please enter a valid email address';
                               }
                               return null;
                             },
@@ -233,8 +251,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                               if (value == null || value.isEmpty) {
                                 return 'Please enter your password';
                               }
-                              if (value.length < 4) {
-                                return 'Password must be at least 4 characters';
+                              if (value.length < 6) { 
+                                return 'Password must be at least 6 characters';
                               }
                               return null;
                             },
@@ -257,7 +275,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                       ),
                                     )
                                   : const Text(
-                                      'Sign In',
+                                      'Sign In / Register', 
                                       style: TextStyle(fontSize: 16),
                                     ),
                             ),
@@ -266,7 +284,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                           
                           // Info Text
                           Text(
-                            'First time? Just enter any username and password to register!',
+                            'First time? Enter a valid email and a password of 6+ characters to register automatically!',
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Colors.grey[600],

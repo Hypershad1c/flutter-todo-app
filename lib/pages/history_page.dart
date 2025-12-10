@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task.dart';
-import '../database/database_helper.dart';
+// Changement: Importation du nouveau service
+import '../services/firebase_task_service.dart';
+// Suppression de l'ancien: import '../database/database_helper.dart'; 
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -22,11 +24,21 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Future<void> _loadCompletedTasks() async {
     setState(() => _isLoading = true);
-    final tasks = await DatabaseHelper.instance.getCompletedTasks();
-    setState(() {
-      _completedTasks = tasks;
-      _isLoading = false;
-    });
+    try {
+        // Utilisation du service Firebase
+        final tasks = await FirebaseTaskService.instance.getCompletedTasks();
+        setState(() {
+            _completedTasks = tasks;
+            _isLoading = false;
+        });
+    } catch (e) {
+        if(mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error loading history: $e')),
+            );
+            setState(() => _isLoading = false);
+        }
+    }
   }
 
   Future<void> _clearHistory() async {
@@ -54,52 +66,88 @@ class _HistoryPageState extends State<HistoryPage> {
     );
 
     if (confirm == true) {
-      await DatabaseHelper.instance.clearCompletedTasks();
-      _loadCompletedTasks();
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('History cleared successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      setState(() => _isLoading = true);
+      try {
+        // Utilisation du service Firebase
+        await FirebaseTaskService.instance.clearCompletedTasks();
+        await _loadCompletedTasks();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('History cleared successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if(mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error clearing history: $e')),
+            );
+            setState(() => _isLoading = false);
+        }
       }
     }
   }
 
   Future<void> _restoreTask(Task task) async {
+    // task.id est maintenant un String?
+    if (task.id == null) return;
+    
     final restoredTask = task.copyWith(
       isDone: false,
       completedAt: null,
     );
-    await DatabaseHelper.instance.updateTask(restoredTask);
-    _loadCompletedTasks();
     
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Task restored to active list'),
-          backgroundColor: Colors.blue,
-        ),
-      );
+    try {
+        // Utilisation du service Firebase
+        await FirebaseTaskService.instance.updateTask(restoredTask);
+        await _loadCompletedTasks();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Task restored to active list'),
+              backgroundColor: Colors.blue,
+            ),
+          );
+        }
+    } catch (e) {
+        if(mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error restoring task: $e')),
+            );
+        }
     }
   }
 
   Future<void> _deleteTask(Task task) async {
-    await DatabaseHelper.instance.deleteTask(task.id!);
-    _loadCompletedTasks();
+    if (task.id == null) return;
     
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Task deleted permanently'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    try {
+        // Utilisation du service Firebase
+        await FirebaseTaskService.instance.deleteTask(task.id!);
+        await _loadCompletedTasks();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Task deleted permanently'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+    } catch (e) {
+        if(mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error deleting task: $e')),
+            );
+        }
     }
   }
 
+  // Fonction utilitaire pour la couleur de priorité
   Color _getPriorityColor(String priority) {
     switch (priority) {
       case 'High':
